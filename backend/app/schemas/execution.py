@@ -1,51 +1,51 @@
 ﻿from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 
 class ExecutionBase(BaseModel):
-    status: str = Field(default="pending")
-    started_at: datetime | None = None
-    finished_at: datetime | None = None
-    error_message: str | None = None
-    trigger_source: str | None = Field(default=None, max_length=50)
-    metadata: dict | None = None
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True)
+
+    status: str = Field(default="pending", description="Estado de la ejecución")
+    started_at: datetime | None = Field(default=None, description="Fecha de inicio (UTC)")
+    finished_at: datetime | None = Field(default=None, description="Fecha de finalización (UTC)")
+    error_message: str | None = Field(default=None, description="Mensaje de error")
+    trigger_source: str | None = Field(
+        default=None, max_length=50, description="Origen del disparo"
+    )
+    metadata: dict | None = Field(
+        default=None,
+        validation_alias=AliasChoices("metadata", "extra_metadata"),
+        serialization_alias="metadata",
+        description="Metadatos adicionales",
+    )
 
 
 class ExecutionCreate(ExecutionBase):
-    pass
+    """Esquema para crear una ejecución."""
 
 
 class ExecutionUpdate(BaseModel):
-    status: str | None = None
-    started_at: datetime | None = None
-    finished_at: datetime | None = None
-    error_message: str | None = None
-    trigger_source: str | None = Field(default=None, max_length=50)
-    metadata: dict | None = None
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True)
+
+    status: str | None = Field(default=None, description="Estado de la ejecución")
+    started_at: datetime | None = Field(default=None, description="Fecha de inicio (UTC)")
+    finished_at: datetime | None = Field(default=None, description="Fecha de finalización (UTC)")
+    error_message: str | None = Field(default=None, description="Mensaje de error")
+    trigger_source: str | None = Field(
+        default=None, max_length=50, description="Origen del disparo"
+    )
+    metadata: dict | None = Field(
+        default=None,
+        validation_alias=AliasChoices("metadata", "extra_metadata"),
+        serialization_alias="metadata",
+        description="Metadatos adicionales",
+    )
 
 
 class ExecutionRead(ExecutionBase):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True)
 
-    id: int
-    created_at: datetime
-    updated_at: datetime
-
-
-class AuditLogBase(BaseModel):
-    execution_id: int | None = None
-    event_type: str = Field(max_length=50)
-    message: str
-    details: dict | None = None
-
-
-class AuditLogCreate(AuditLogBase):
-    pass
-
-
-class AuditLogRead(AuditLogBase):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    created_at: datetime
+    id: int = Field(description="Identificador único")
+    created_at: datetime = Field(description="Fecha de creación (UTC)")
+    updated_at: datetime = Field(description="Fecha de actualización (UTC)")
