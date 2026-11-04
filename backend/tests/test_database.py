@@ -37,10 +37,26 @@ def test_imports_without_db_connection():
 
 
 def test_alembic_can_load():
+    from pathlib import Path
+
     from alembic.config import Config
 
     from alembic import script
 
-    cfg = Config("backend/alembic.ini")
+    # Buscar alembic.ini relativo al repo o al directorio backend
+    here = Path(__file__).resolve()
+    candidates = [
+        here.parents[1] / "alembic.ini",  # backend/alembic.ini
+        here.parents[2] / "backend" / "alembic.ini",  # repo/backend/alembic.ini
+    ]
+    cfg_path = None
+    for c in candidates:
+        if c.exists():
+            cfg_path = c
+            break
+    if cfg_path is None:
+        raise FileNotFoundError("No se encontró alembic.ini")
+
+    cfg = Config(str(cfg_path))
     script_dir = script.ScriptDirectory.from_config(cfg)
     assert script_dir is not None

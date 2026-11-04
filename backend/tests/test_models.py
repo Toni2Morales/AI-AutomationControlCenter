@@ -44,3 +44,5 @@ def test_schema_from_attributes():
 
     schema = ExecutionRead.model_validate(d)
     assert schema.id == 1
+    assert schema.trigger_source == "api"
+    assert schema.metadata == {}
