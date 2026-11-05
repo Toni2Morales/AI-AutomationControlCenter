@@ -150,6 +150,8 @@ Ejecutar Ruff:
 
 Estados permitidos: `pending`, `running`, `completed`, `failed` y `cancelled`. Transiciones válidas: `pending → running/cancelled` y `running → completed/failed/cancelled`.
 
+La creación fija siempre `status="pending"` y `started_at`/`finished_at` en `null`; los campos gestionados por el servidor se ignoran si el cliente los envía. Cada creación y cada transición válida generan un registro de auditoría (`execution.created`, `execution.started`, `execution.completed`, `execution.failed` y `execution.cancelled`). Las transiciones rechazadas y las peticiones idempotentes sin cambio no generan nuevos registros.
+
 ## Estado real del desarrollo
 
 - [x] Estructura de carpetas creada

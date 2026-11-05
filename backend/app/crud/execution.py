@@ -1,23 +1,62 @@
 """CRUD para ejecuciones."""
 
+from datetime import UTC, datetime
+
 from sqlalchemy.orm import Session
 
+from app.models.audit_log import AuditLog
 from app.models.execution import Execution
 from app.schemas.execution import ExecutionCreate
 
+TERMINAL_STATUSES = {"completed", "failed", "cancelled"}
+
+TRANSITION_EVENTS = {
+    "running": "execution.started",
+    "completed": "execution.completed",
+    "failed": "execution.failed",
+    "cancelled": "execution.cancelled",
+}
+
+TRANSITION_MESSAGES = {
+    "running": "Ejecución iniciada",
+    "completed": "Ejecución completada",
+    "failed": "Ejecución fallida",
+    "cancelled": "Ejecución cancelada",
+}
+
 
 def create_execution(db: Session, execution_in: ExecutionCreate) -> Execution:
-    """Crear una nueva ejecución.
+    """Crear una nueva ejecución en estado ``pending``.
 
-    Los valores por defecto del modelo se aplican si no se especifican.
+    El estado y los timestamps siempre los fija el servidor. La creación y su
+    registro de auditoría se confirman en la misma transacción.
     """
     execution_data = execution_in.model_dump()
     # Mapear metadata a extra_metadata para el modelo ORM
     if "metadata" in execution_data:
         execution_data["extra_metadata"] = execution_data.pop("metadata")
-    db_execution = Execution(**execution_data)
+
+    db_execution = Execution(
+        **execution_data,
+        status="pending",
+        started_at=None,
+        finished_at=None,
+    )
     try:
         db.add(db_execution)
+        # Necesario para disponer del ID antes de crear el registro de auditoría.
+        db.flush()
+        db.add(
+            AuditLog(
+                execution_id=db_execution.id,
+                event_type="execution.created",
+                message="Ejecución creada en estado pendiente",
+                details={
+                    "status": db_execution.status,
+                    "trigger_source": db_execution.trigger_source,
+                },
+            )
+        )
         db.commit()
         db.refresh(db_execution)
         return db_execution
@@ -69,15 +108,20 @@ ALLOWED_TRANSITIONS = {
 
 
 def update_execution_status(db: Session, execution_id: int, new_status: str) -> Execution | None:
-    """Actualizar el estado de una ejecución siguiendo las transiciones permitidas."""
-    from datetime import UTC, datetime
+    """Actualizar el estado de una ejecución siguiendo las transiciones permitidas.
 
+    Si el estado solicitado coincide con el actual, la operación es idempotente:
+    no se modifica nada ni se genera un nuevo registro de auditoría.
+    """
     db_execution = db.query(Execution).filter(Execution.id == execution_id).first()
     if db_execution is None:
         return None
 
     current_status = db_execution.status
-    if current_status in {"completed", "failed", "cancelled"}:
+    if new_status == current_status:
+        return db_execution
+
+    if current_status in TERMINAL_STATUSES:
         raise InvalidExecutionTransitionError(
             "No se puede modificar una ejecución en estado terminal"
         )
@@ -86,13 +130,26 @@ def update_execution_status(db: Session, execution_id: int, new_status: str) -> 
     if new_status not in allowed:
         raise InvalidExecutionTransitionError("Transición de estado no permitida")
 
-    db_execution.status = new_status
-    if new_status == "running" and db_execution.started_at is None:
-        db_execution.started_at = datetime.now(UTC)
-    if new_status in {"completed", "failed", "cancelled"}:
-        db_execution.finished_at = datetime.now(UTC)
-
     try:
+        now = datetime.now(UTC)
+        db_execution.status = new_status
+        if new_status == "running":
+            db_execution.started_at = now
+        if new_status in TERMINAL_STATUSES:
+            db_execution.finished_at = now
+
+        db.add(
+            AuditLog(
+                execution_id=db_execution.id,
+                event_type=TRANSITION_EVENTS[new_status],
+                message=TRANSITION_MESSAGES[new_status],
+                details={
+                    "previous_status": current_status,
+                    "new_status": new_status,
+                },
+            )
+        )
+
         db.commit()
         db.refresh(db_execution)
         return db_execution
@@ -101,10 +158,8 @@ def update_execution_status(db: Session, execution_id: int, new_status: str) -> 
         raise
 
 
-def get_audit_logs_by_execution(db: Session, execution_id: int):
+def get_audit_logs_by_execution(db: Session, execution_id: int) -> list[AuditLog]:
     """Obtener registros de auditoría de una ejecución."""
-    from app.models.audit_log import AuditLog
-
     return (
         db.query(AuditLog)
         .filter(AuditLog.execution_id == execution_id)

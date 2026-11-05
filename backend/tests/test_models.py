@@ -15,10 +15,22 @@ def test_tables_in_metadata():
     assert "audit_logs" in Base.metadata.tables
 
 
-def test_execution_schema():
-    data = {"status": "pending"}
+def test_execution_create_schema_ignores_managed_fields():
+    data = {
+        "status": "completed",
+        "started_at": "2000-01-01T00:00:00Z",
+        "finished_at": "2000-01-01T01:00:00Z",
+        "trigger_source": "api",
+    }
     schema = ExecutionCreate(**data)
-    assert schema.status == "pending"
+
+    assert schema.trigger_source == "api"
+    assert not hasattr(schema, "status")
+    assert not hasattr(schema, "started_at")
+    assert not hasattr(schema, "finished_at")
+    assert "status" not in schema.model_dump()
+    assert "started_at" not in schema.model_dump()
+    assert "finished_at" not in schema.model_dump()
 
 
 def test_audit_log_schema():
