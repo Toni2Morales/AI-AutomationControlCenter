@@ -19,5 +19,39 @@
       retries: 5
     restart: unless-stopped
 
+  n8n:
+    image: n8nio/n8n:2.47.2
+    container_name: aacc-n8n
+    environment:
+      TZ: ${TZ:-Europe/Madrid}
+      GENERIC_TIMEZONE: ${TZ:-Europe/Madrid}
+      N8N_HOST: ${N8N_HOST:-127.0.0.1}
+      N8N_PORT: ${N8N_PORT:-5678}
+      N8N_PROTOCOL: ${N8N_PROTOCOL:-http}
+      N8N_LISTEN_ADDRESS: 0.0.0.0
+      # Sin valor por defecto: si falta en .env, Compose aborta el arranque.
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:?N8N_ENCRYPTION_KEY must be set in .env}
+      WEBHOOK_URL: ${WEBHOOK_URL:-http://127.0.0.1:5678/}
+      # Solo para desarrollo local por HTTP. No usar así con HTTPS.
+      N8N_SECURE_COOKIE: "false"
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "127.0.0.1:${N8N_PORT:-5678}:${N8N_PORT:-5678}"
+    volumes:
+      - n8n_data:/home/node/.n8n
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:${N8N_PORT:-5678}/healthz').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
 volumes:
   postgres_data:
+  n8n_data:
