@@ -1,7 +1,7 @@
 ﻿from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import JSON, DateTime, Index, Integer, String, Text
+from sqlalchemy import JSON, CheckConstraint, DateTime, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -39,6 +39,10 @@ class Execution(Base):
     )
 
     __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'running', 'completed', 'failed', 'cancelled')",
+            name="ck_executions_status",
+        ),
         Index("ix_executions_status", "status"),
         Index("ix_executions_started_at", "started_at"),
         Index("ix_executions_created_at", "created_at"),

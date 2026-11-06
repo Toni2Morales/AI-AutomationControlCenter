@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -15,21 +16,32 @@ router = APIRouter()
 
 class ExecutionStatusUpdate(BaseModel):
     """Cuerpo de petición para actualizar el estado de una ejecución."""
+
     status: Literal["running", "completed", "failed", "cancelled"]
+
+
+def _as_utc(value: datetime | None) -> datetime | None:
+    """Normalizar a UTC las fechas naive y las fechas con otra zona horaria."""
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        # SQLite devuelve las fechas sin zona horaria; el proyecto las trata como UTC.
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 def _execution_to_dict(item):
     """Convertir instancia ORM a dict compatible con ExecutionRead."""
     return {
         "status": item.status,
-        "started_at": item.started_at,
-        "finished_at": item.finished_at,
+        "started_at": _as_utc(item.started_at),
+        "finished_at": _as_utc(item.finished_at),
         "error_message": item.error_message,
         "trigger_source": item.trigger_source,
         "metadata": item.extra_metadata,
         "id": item.id,
-        "created_at": item.created_at,
-        "updated_at": item.updated_at,
+        "created_at": _as_utc(item.created_at),
+        "updated_at": _as_utc(item.updated_at),
     }
 
 
