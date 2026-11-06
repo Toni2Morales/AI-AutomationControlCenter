@@ -10,6 +10,8 @@
 | **Base de datos: PostgreSQL** | Robusto, relacional, ampliamente usado, buen para trazabilidad/auditoría. |
 | **Automatización: n8n autoalojado** | Permite orquestar flujos localmente, exportar flujos como JSON versionados. |
 | **n8n: imagen fijada y volumen propio** | Se fija una versión estable explícita, se publica solo en `127.0.0.1:5678` y se usa el volumen `n8n_data` para su SQLite interno. Sin conexión a PostgreSQL ni al backend en esta fase. |
+| **Redes Docker separadas** | PostgreSQL usa `postgres_net` y n8n usa `n8n_net`; no comparten red. Los puertos se mantienen en `127.0.0.1` para conservar el acceso desde Windows. |
+| **n8n: bloqueo de variables de entorno en nodos** | `N8N_BLOCK_ENV_ACCESS_IN_NODE=true` evita que expresiones y nodos Code lean variables del contenedor, incluida la clave de cifrado. |
 | **IA local: Ollama** | Funciona 100% local, sin claves de pago para funcionalidad principal. |
 | **Modelo inicial: qwen2.5:3b-instruct** | Equilibrio razonable entre tamaño, rendimiento en CPU/GPU modesta (GTX 960) y capacidad para extracción/JSON. Configurable. |
 | **Proveedor IA configurable (interfaz)** | Permite cambiar modelo/proveedor sin reescribir lógica de negocio. |
@@ -31,3 +33,6 @@
 - Sin secretos en código/versionado.
 - `N8N_ENCRYPTION_KEY` se obtiene de `.env`, no tiene valor por defecto y debe conservarse mientras exista el volumen `n8n_data`.
 - n8n usa HTTP local con `N8N_SECURE_COOKIE=false`; esta configuración es solo para desarrollo en `127.0.0.1`.
+- n8n y PostgreSQL usan redes Docker exclusivas. FastAPI en Windows mantiene el acceso a PostgreSQL por `localhost:5432`; n8n se publica en `127.0.0.1:5678`.
+- La futura comunicación n8n -> FastAPI podrá usar `host.docker.internal`; no está implementada en esta etapa.
+- Las redes no se configuran como `internal: true`; se mantienen como redes bridge locales para preservar el acceso desde el host.

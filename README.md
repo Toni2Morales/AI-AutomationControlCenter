@@ -213,6 +213,14 @@ docker compose stop postgres
 
 n8n se ejecuta en un contenedor independiente con su propia base SQLite dentro del volumen `n8n_data`. En esta etapa no se conecta a PostgreSQL, FastAPI ni Ollama. El puerto solo se publica en la interfaz local `127.0.0.1:5678`.
 
+### Aislamiento de red y endurecimiento
+
+- PostgreSQL usa la red exclusiva `postgres_net`; n8n usa la red exclusiva `n8n_net`. No comparten red, por lo que n8n no puede resolver ni alcanzar `postgres` mediante el DNS interno de Docker.
+- Los puertos publicados se mantienen sin cambios y limitados a la interfaz local: PostgreSQL en `127.0.0.1:5432` y n8n en `127.0.0.1:5678`. FastAPI, ejecutándose en Windows, sigue accediendo a PostgreSQL mediante `localhost:5432`.
+- `N8N_BLOCK_ENV_ACCESS_IN_NODE=true` impide que las expresiones y los nodos Code accedan a las variables de entorno del contenedor, incluida la clave de cifrado.
+- Las redes no se marcan como `internal: true`; se mantienen como redes bridge locales para no bloquear el acceso desde el host ni la conectividad saliente que n8n pueda necesitar.
+- La futura comunicación de n8n hacia FastAPI podrá usar `host.docker.internal`; no está implementada en esta etapa.
+
 ### Configurar la clave de cifrado
 
 `N8N_ENCRYPTION_KEY` protege las credenciales guardadas por n8n. Compose la exige y no tiene valor por defecto. Genera una clave aleatoria desde PowerShell:

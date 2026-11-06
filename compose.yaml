@@ -18,6 +18,8 @@
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    networks:
+      - postgres_net
 
   n8n:
     image: n8nio/n8n:2.47.2
@@ -35,6 +37,8 @@
       # Solo para desarrollo local por HTTP. No usar así con HTTPS.
       N8N_SECURE_COOKIE: "false"
       N8N_DIAGNOSTICS_ENABLED: "false"
+      # Evita que expresiones y nodos Code lean variables de entorno del contenedor.
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "true"
       N8N_LOG_LEVEL: ${LOG_LEVEL:-info}
     ports:
       - "127.0.0.1:${N8N_PORT:-5678}:${N8N_PORT:-5678}"
@@ -51,7 +55,15 @@
       retries: 10
       start_period: 30s
     restart: unless-stopped
+    networks:
+      - n8n_net
 
 volumes:
   postgres_data:
   n8n_data:
+
+networks:
+  # Red exclusiva de PostgreSQL. No se comparte con n8n.
+  postgres_net:
+  # Red exclusiva de n8n. No se comparte con PostgreSQL.
+  n8n_net:
