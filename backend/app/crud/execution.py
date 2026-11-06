@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.audit_log import AuditLog
@@ -23,6 +24,20 @@ TRANSITION_MESSAGES = {
     "failed": "Ejecución fallida",
     "cancelled": "Ejecución cancelada",
 }
+
+
+def _commit_without_expiring(db: Session) -> None:
+    """Confirmar sin expirar la instancia devuelta.
+
+    Así la respuesta se construye con los valores ya confirmados en memoria y no
+    se lanza una consulta adicional que podría observar un estado posterior.
+    """
+    expire_on_commit = db.expire_on_commit
+    db.expire_on_commit = False
+    try:
+        db.commit()
+    finally:
+        db.expire_on_commit = expire_on_commit
 
 
 def create_execution(db: Session, execution_in: ExecutionCreate) -> Execution:
@@ -110,27 +125,39 @@ ALLOWED_TRANSITIONS = {
 def update_execution_status(db: Session, execution_id: int, new_status: str) -> Execution | None:
     """Actualizar el estado de una ejecución siguiendo las transiciones permitidas.
 
+    La fila se bloquea con ``SELECT ... FOR UPDATE`` antes de leer su estado.
+    En PostgreSQL, dos peticiones concurrentes sobre la misma ejecución se
+    serializan: la segunda espera al commit de la primera y valida el estado ya
+    actualizado. El bloqueo se mantiene hasta confirmar o revertir la
+    transacción completa, incluida la inserción del ``AuditLog``.
+
     Si el estado solicitado coincide con el actual, la operación es idempotente:
     no se modifica nada ni se genera un nuevo registro de auditoría.
     """
-    db_execution = db.query(Execution).filter(Execution.id == execution_id).first()
-    if db_execution is None:
-        return None
-
-    current_status = db_execution.status
-    if new_status == current_status:
-        return db_execution
-
-    if current_status in TERMINAL_STATUSES:
-        raise InvalidExecutionTransitionError(
-            "No se puede modificar una ejecución en estado terminal"
-        )
-
-    allowed = ALLOWED_TRANSITIONS.get(current_status, set())
-    if new_status not in allowed:
-        raise InvalidExecutionTransitionError("Transición de estado no permitida")
-
     try:
+        db_execution = db.execute(
+            select(Execution).where(Execution.id == execution_id).with_for_update()
+        ).scalar_one_or_none()
+
+        if db_execution is None:
+            db.rollback()
+            return None
+
+        current_status = db_execution.status
+        if new_status == current_status:
+            # Liberar explícitamente el bloqueo; no hay cambios que confirmar.
+            _commit_without_expiring(db)
+            return db_execution
+
+        if current_status in TERMINAL_STATUSES:
+            raise InvalidExecutionTransitionError(
+                "No se puede modificar una ejecución en estado terminal"
+            )
+
+        allowed = ALLOWED_TRANSITIONS.get(current_status, set())
+        if new_status not in allowed:
+            raise InvalidExecutionTransitionError("Transición de estado no permitida")
+
         now = datetime.now(UTC)
         db_execution.status = new_status
         if new_status == "running":
@@ -150,8 +177,7 @@ def update_execution_status(db: Session, execution_id: int, new_status: str) -> 
             )
         )
 
-        db.commit()
-        db.refresh(db_execution)
+        _commit_without_expiring(db)
         return db_execution
     except Exception:
         db.rollback()

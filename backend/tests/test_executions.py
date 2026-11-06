@@ -1,9 +1,12 @@
+from datetime import UTC, datetime, timedelta, timezone
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app.api.v1.endpoints.executions import _as_utc
 from app.core.database import Base, get_db
 from app.main import app
 
@@ -60,6 +63,26 @@ def _get_audit_logs(execution_id: int) -> list[dict]:
     response = client.get(f"/api/v1/executions/{execution_id}/audit-logs")
     assert response.status_code == 200
     return response.json()
+
+
+def test_as_utc_treats_naive_datetimes_as_utc():
+    naive = datetime(2026, 1, 2, 3, 4, 5)
+
+    normalized = _as_utc(naive)
+
+    assert normalized == naive.replace(tzinfo=UTC)
+    assert normalized is not None
+    assert normalized.utcoffset() == timedelta(0)
+
+
+def test_as_utc_converts_aware_datetimes_to_utc():
+    source = datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone(timedelta(hours=2)))
+
+    normalized = _as_utc(source)
+
+    assert normalized == datetime(2026, 1, 2, 1, 4, 5, tzinfo=UTC)
+    assert normalized is not None
+    assert normalized.utcoffset() == timedelta(0)
 
 
 def test_create_execution_minimal():
@@ -406,6 +429,29 @@ def test_patch_not_found():
 def test_patch_invalid_id():
     response = client.patch("/api/v1/executions/abc/status", json={"status": "running"})
     assert response.status_code == 422
+
+
+def test_patch_rejects_unknown_status():
+    execution = _create_execution()
+    response = client.patch(
+        f"/api/v1/executions/{execution['id']}/status", json={"status": "unknown"}
+    )
+    assert response.status_code == 422
+
+
+def test_database_rejects_invalid_status():
+    from sqlalchemy.exc import IntegrityError
+
+    from app.models.execution import Execution
+
+    db = TestingSessionLocal()
+    try:
+        db.add(Execution(status="invalid"))
+        with pytest.raises(IntegrityError):
+            db.commit()
+    finally:
+        db.rollback()
+        db.close()
 
 
 def test_patch_cannot_set_started_at():

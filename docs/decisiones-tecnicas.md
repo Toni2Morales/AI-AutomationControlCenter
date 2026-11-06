@@ -17,7 +17,10 @@
 | **Proveedor IA configurable (interfaz)** | Permite cambiar modelo/proveedor sin reescribir lógica de negocio. |
 | **Docker Compose** | Orquestación local reproducible. |
 | **Migraciones: Alembic** | Versionado de esquema PostgreSQL. |
+| **Concurrencia de ejecuciones: `SELECT ... FOR UPDATE`** | Serializa las transiciones por fila en PostgreSQL y evita carreras entre estados y auditoría. |
+| **Restricción `CHECK` de estados** | La base de datos solo admite `pending`, `running`, `completed`, `failed` y `cancelled`. |
 | **Pruebas backend: pytest** | Estándar en Python. |
+| **Pruebas de concurrencia: PostgreSQL con Testcontainers** | Usan un contenedor efímero aislado; no reutilizan la base local ni sus volúmenes. El puerto se publica solo en `127.0.0.1` con asignación aleatoria de Docker. |
 | **Pruebas API: Postman** | Documentación y pruebas manuales/automatizables. |
 | **Control de versiones: Git + GitHub** | Trazabilidad, ramas, PRs. |
 | **Idioma español** | Toda documentación dirigida a personas en español. Código en inglés por convención. |
@@ -36,3 +39,6 @@
 - n8n y PostgreSQL usan redes Docker exclusivas. FastAPI en Windows mantiene el acceso a PostgreSQL por `localhost:5432`; n8n se publica en `127.0.0.1:5678`.
 - La futura comunicación n8n -> FastAPI podrá usar `host.docker.internal`; no está implementada en esta etapa.
 - Las redes no se configuran como `internal: true`; se mantienen como redes bridge locales para preservar el acceso desde el host.
+- Las transiciones de `Execution` se serializan con bloqueo pesimista por fila. SQLite se usa para pruebas de lógica y atomicidad, no como evidencia de concurrencia real.
+- Las pruebas de concurrencia requieren Docker y Testcontainers. Si falta Testcontainers, la importación falla de forma visible; si Docker no está disponible, el preflight omite explícitamente las pruebas en lugar de simular un resultado.
+- El contenedor PostgreSQL efímero de pruebas se publica únicamente en `127.0.0.1` y utiliza un puerto libre asignado por Docker.
