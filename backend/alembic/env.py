@@ -1,13 +1,16 @@
 ﻿import sys
 from logging.config import fileConfig
+from pathlib import Path
 
 from alembic import context
 
-sys.path.append('backend')
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
-import app.models  # noqa
-from app.core.config import settings
-from app.core.database import Base
+import app.models  # noqa: E402, F401
+from app.core.config import settings  # noqa: E402
+from app.core.database import Base  # noqa: E402
 
 config = context.config
 config.set_main_option('sqlalchemy.url', settings.DATABASE_URL)

@@ -2,8 +2,6 @@
   postgres:
     image: postgres:16
     container_name: aacc-postgres
-    env_file:
-      - .env
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -20,6 +18,46 @@
     restart: unless-stopped
     networks:
       - postgres_net
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: aacc-backend
+    environment:
+      APP_ENV: ${APP_ENV:-dev}
+      APP_NAME: ${APP_NAME:-ai-automation-control-center}
+      # Se construye con el host interno para no reutilizar la URL de Windows.
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-http://localhost:4200,http://127.0.0.1:4200}
+      # Direcciones internas de los servicios; no se usan desde Windows.
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:3b-instruct}
+      OLLAMA_TIMEOUT: ${OLLAMA_TIMEOUT:-120}
+      N8N_BASE_URL: http://n8n:5678
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - postgres_net
+      - n8n_net
+      - ai_net
 
   n8n:
     image: n8nio/n8n:2.47.2
@@ -58,12 +96,30 @@
     networks:
       - n8n_net
 
+  ollama:
+    image: ${OLLAMA_IMAGE:-ollama/ollama:0.40.15}
+    container_name: aacc-ollama
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - ai_net
+
 volumes:
   postgres_data:
   n8n_data:
+  ollama_data:
 
 networks:
   # Red exclusiva de PostgreSQL. No se comparte con n8n.
   postgres_net:
   # Red exclusiva de n8n. No se comparte con PostgreSQL.
   n8n_net:
+  # Red exclusiva de Ollama. Solo la comparte con el backend.
+  ai_net:

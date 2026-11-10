@@ -20,3 +20,15 @@ def test_health():
 def test_openapi():
     response = client.get("/openapi.json")
     assert response.status_code == 200
+
+
+def test_cors_allows_angular_origin():
+    response = client.options(
+        "/health",
+        headers={
+            "Origin": "http://localhost:4200",
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://localhost:4200"

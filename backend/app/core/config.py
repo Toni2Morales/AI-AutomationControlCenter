@@ -12,7 +12,12 @@ class Settings(BaseSettings):
 
     APP_ENV: str = "dev"
     APP_NAME: str = "ai-automation-control-center"
-    DATABASE_URL: str = "postgresql+psycopg://aacc_user:CAMBIAR_VALOR@127.0.0.1:5432/aacc_db"
+    DATABASE_URL: str = "postgresql+psycopg://aacc_user:CAMBIAR_VALOR@postgres:5432/aacc_db"
+    BACKEND_CORS_ORIGINS: str = "http://localhost:4200,http://127.0.0.1:4200"
+    OLLAMA_BASE_URL: str = "http://ollama:11434"
+    OLLAMA_MODEL: str = "qwen2.5:3b-instruct"
+    OLLAMA_TIMEOUT: int = 120
+    N8N_BASE_URL: str = "http://n8n:5678"
 
     @field_validator("DATABASE_URL")
     @classmethod
@@ -20,6 +25,15 @@ class Settings(BaseSettings):
         if not v:
             raise ValueError("DATABASE_URL debe estar configurada")
         return v
+
+    @property
+    def cors_origins(self) -> list[str]:
+        """Devuelve los orígenes CORS configurados, sin entradas vacías."""
+        return [
+            origin.strip()
+            for origin in self.BACKEND_CORS_ORIGINS.split(",")
+            if origin.strip()
+        ]
 
 
 settings = Settings()
