@@ -10,51 +10,64 @@ Permite automatizar flujos de trabajo que combinen extracción, validación y pr
 
 ## Funcionalidades
 
-### Previstas (no implementadas)
-- Extracción y validación de facturas con IA local mediante Ollama.
-- Limpieza y normalización de datos con Pandas.
-- Orquestación de flujos con n8n autoalojado.
-- Interfaz web con Angular para consulta de ejecuciones y auditoría.
-- API REST con FastAPI.
-- Almacenamiento persistente en PostgreSQL con trazabilidad.
-- Migraciones con Alembic.
-- Validación estricta de las salidas del modelo contra esquemas explícitos.
-- Evaluación de prompts con casos deterministas.
-- Pruebas automatizadas con pytest.
-- Colección de API para pruebas con Postman.
-
 ### Implementadas
+
 - Estructura base del repositorio y documentación inicial.
 - Modelos `Execution` y `AuditLog` con migración inicial en Alembic.
 - API REST de ejecuciones: creación, listado paginado, consulta por ID, cambio de estado y consulta de auditoría.
 - Pruebas automatizadas del backend con pytest.
+- Infraestructura Docker operativa para FastAPI, PostgreSQL, n8n y Ollama.
+- Redes separadas para PostgreSQL, n8n y Ollama.
+- Volúmenes persistentes para PostgreSQL, n8n y Ollama.
+- Configuración CORS para el futuro frontend Angular local.
+
+### Validado
+
+- Imagen del backend construida y servicio `backend` ejecutándose con usuario no root.
+- Servicios PostgreSQL, backend, n8n y Ollama arrancados y en estado `healthy`.
+- `docker compose config -q` validado correctamente.
+- Puertos publicados exclusivamente en `127.0.0.1`; Ollama no publica puertos.
+- Conectividad interna comprobada entre backend, n8n, Ollama y PostgreSQL.
+- Migración `b7c1e4f2a9d3` aplicada, con la restricción `ck_executions_status` activa.
+- Suite del backend ejecutada: 78 pruebas superadas y 0 fallidas.
+- Consulta `GET /api/v1/executions/?page=1&page_size=20` verificada contra PostgreSQL.
+
+### Previstas (no implementadas)
+
+- Interfaz web con Angular para consulta de ejecuciones y auditoría.
+- Integración funcional entre FastAPI y n8n.
+- Extracción y validación de facturas con IA local mediante Ollama.
+- Limpieza y normalización de datos con Pandas.
+- Evaluación de prompts con casos deterministas.
+- Colección de API para pruebas con Postman.
 
 ## Arquitectura y tecnologías
 
-- **Frontend:** Angular con TypeScript en modo estricto
-- **Backend:** FastAPI (Python 3.12)
-- **Base de datos:** PostgreSQL
-- **Automatización:** n8n autoalojado
-- **IA local:** Ollama (modelo configurable, previsto qwen2.5:3b-instruct)
-- **Migraciones:** Alembic
-- **ORM:** SQLAlchemy
-- **Validación:** Pydantic
-- **Datos:** Pandas
-- **Pruebas:** pytest
-- **API testing:** Postman
-- **Orquestación:** Docker Compose
-- **Control de versiones:** Git y GitHub
+- **Frontend:** Angular con TypeScript en modo estricto (pendiente).
+- **Backend:** FastAPI (Python 3.12), ejecutado en Docker.
+- **Base de datos:** PostgreSQL, ejecutado en Docker.
+- **Automatización:** n8n autoalojado, ejecutado en Docker.
+- **IA local:** Ollama, ejecutado en Docker.
+- **Migraciones:** Alembic.
+- **ORM:** SQLAlchemy.
+- **Validación:** Pydantic.
+- **Datos:** Pandas.
+- **Pruebas:** pytest.
+- **API testing:** Postman.
+- **Orquestación:** Docker Compose.
+- **Control de versiones:** Git y GitHub.
 
-Consulta docs/arquitectura.md para más detalles sobre componentes, comunicaciones y límites de seguridad.
+Consulta `docs/arquitectura.md` para más detalles sobre componentes, comunicaciones y límites de seguridad.
 
 ## Requisitos previos
 
-- Git
-- Docker Desktop con contenedores Linux
-- Node.js y npm
-- Python 3.12 (el backend utiliza un entorno virtual propio en `backend/.venv`).
-- Ollama instalado y accesible en http://localhost:11434
-- Espacio suficiente en disco
+- Git.
+- Docker Desktop con contenedores Linux.
+- Node.js y npm para el futuro frontend Angular.
+- Python 3.12 para ejecutar las pruebas del backend en Windows.
+- Espacio suficiente en disco para las imágenes y los modelos de Ollama.
+
+Ollama se ejecuta dentro de Docker. No es necesario tener Ollama en ejecución en Windows para esta arquitectura. La instalación existente en Windows no se modifica ni se elimina.
 
 ## Configuración del entorno
 
@@ -66,78 +79,137 @@ Variables principales:
 | Variable | Uso |
 |---|---|
 | `APP_ENV` | Entorno de ejecución (`dev` por defecto). |
+| `APP_NAME` | Nombre de la aplicación. |
 | `TZ` | Zona horaria local (por defecto `Europe/Madrid`). |
-| `DATABASE_URL` | Conexión a PostgreSQL usada por SQLAlchemy y Alembic. |
-| `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | Credenciales de PostgreSQL para Docker Compose. |
-| `BACKEND_HOST`, `BACKEND_PORT` | Dirección y puerto previstos para FastAPI. |
-| `OLLAMA_BASE_URL`, `OLLAMA_MODEL` | Configuración de la IA local (integración pendiente). |
+| `BACKEND_PORT` | Puerto publicado en Windows. Uvicorn escucha en `0.0.0.0:8000` dentro del contenedor. |
+| `BACKEND_CORS_ORIGINS` | Orígenes permitidos para Angular, separados por comas. |
+| `DATABASE_URL` | URL interna a PostgreSQL con host `postgres`. Dentro de Docker, Compose construye la variable del backend a partir de `POSTGRES_*`; para Alembic desde Windows se sobrescribe temporalmente con `127.0.0.1` (ver Migraciones). |
+| `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | Credenciales de PostgreSQL para Docker Compose. La contraseña local debe usar solo caracteres URL-safe: letras ASCII, dígitos, `_` y `-`. |
+| `POSTGRES_HOST`, `POSTGRES_PORT` | Valores de referencia del puerto publicado para herramientas ejecutadas en Windows; no construyen `DATABASE_URL` automáticamente. |
+| `OLLAMA_IMAGE` | Imagen oficial de Ollama; valor por defecto fijado: `ollama/ollama:0.40.15`. |
+| `OLLAMA_BASE_URL` | URL interna de Ollama: `http://ollama:11434`. |
+| `OLLAMA_MODEL`, `OLLAMA_TIMEOUT` | Modelo previsto y tiempo máximo de espera de la integración de IA. |
 | `N8N_HOST`, `N8N_PORT`, `N8N_PROTOCOL`, `WEBHOOK_URL` | Dirección y URL local de n8n. |
+| `N8N_BASE_URL` | URL interna prevista para que el backend llame a n8n: `http://n8n:5678`. |
+| `N8N_CALLBACK_BASE_URL` | URL interna prevista para que n8n llame a FastAPI: `http://backend:8000`. La integración todavía no la utiliza. |
 | `N8N_ENCRYPTION_KEY` | Clave obligatoria para cifrar credenciales de n8n. No debe versionarse. |
+| `LOG_LEVEL` | Nivel de registro de n8n; se aplica como `N8N_LOG_LEVEL`. FastAPI no lo consume actualmente. |
 
 > No se deben incluir credenciales reales en `.env.example` ni en archivos versionados.
 
 ## Estructura del repositorio
 
-```
+```text
 AI-AutomationControlCenter/
-├── frontend/      # Aplicación Angular (pendiente)
-├── backend/       # API FastAPI (en desarrollo)
-├── database/      # Migraciones y datos de ejemplo
-├── n8n/           # Exportaciones de flujos n8n
-├── ai-eval/       # Casos de evaluación y conjuntos de prueba
-├── postman/       # Colección Postman
-├── infra/         # Configuración de infraestructura
-├── docs/          # Documentación en español
-├── AGENTS.md      # Instrucciones para agentes
-├── .env.example   # Plantilla de variables de entorno (sin secretos)
+├── backend/
+│   ├── app/                 # API FastAPI
+│   ├── alembic/             # Migraciones
+│   ├── tests/               # Pruebas automatizadas
+│   ├── Dockerfile           # Imagen del backend
+│   ├── .dockerignore
+│   ├── alembic.ini
+│   ├── requirements.txt
+│   ├── requirements-dev.txt
+│   └── run-tests.ps1
+├── docs/                    # Documentación en español
+├── compose.yaml             # Servicios, redes y volúmenes
+├── .env.example             # Plantilla de variables sin secretos
 ├── .gitignore
+├── AGENTS.md
 ├── LICENSE
 └── README.md
 ```
 
+El frontend Angular todavía no existe en el repositorio.
+
 ## Puesta en marcha local
 
 1. Copiar `.env.example` a `.env` y configurar los valores locales.
-2. Crear el entorno virtual e instalar dependencias (ver sección siguiente).
-3. Arrancar PostgreSQL con Docker Compose (ver sección de base de datos local).
-4. Configurar la clave de n8n y arrancar el servicio (ver sección de n8n local).
-5. Aplicar las migraciones con Alembic (ver sección de migraciones).
-6. Iniciar el backend con Uvicorn.
-
-El frontend, los flujos de n8n y la evaluación de prompts siguen pendientes. El servicio n8n ya está definido en Docker Compose, pero todavía no se comunica con FastAPI.
-
-## Backend: ejecución y pruebas
-
-Requisito: Python 3.12. Los comandos se ejecutan desde la raíz del proyecto en PowerShell.
+2. Validar la configuración de Compose.
+3. Construir y arrancar PostgreSQL, FastAPI, n8n y Ollama.
+4. Aplicar las migraciones de Alembic.
+5. Consultar la API en `http://127.0.0.1:8000/docs`.
+6. Abrir n8n en `http://127.0.0.1:5678`.
 
 ```powershell
-# Crear el entorno virtual e instalar dependencias de desarrollo
-python -m venv backend/.venv
-.\backend\.venv\Scripts\python.exe -m pip install -r backend/requirements-dev.txt
+docker compose config -q
+docker compose up -d postgres backend n8n ollama
+docker compose run --rm backend alembic -c /app/alembic.ini upgrade head
+docker compose ps
 ```
 
-Ejecutar la API en modo desarrollo:
+La primera puesta en marcha descarga las imágenes y puede tardar. La descarga del modelo de Ollama se realiza en una fase posterior.
+
+## Servicios Docker
+
+| Servicio | Imagen o construcción | Redes | Puerto en Windows | Persistencia |
+|---|---|---|---|---|
+| `postgres` | `postgres:16` | `postgres_net` | `127.0.0.1:5432` | `postgres_data` |
+| `backend` | `backend/Dockerfile` | `postgres_net`, `n8n_net`, `ai_net` | `127.0.0.1:8000` | Sin volumen; es stateless |
+| `n8n` | `n8nio/n8n:2.47.2` | `n8n_net` | `127.0.0.1:5678` | `n8n_data` |
+| `ollama` | `ollama/ollama:0.40.15` (configurable con `OLLAMA_IMAGE`) | `ai_net` | Ninguno | `ollama_data` |
+
+### Redes y comunicaciones internas
+
+- `postgres_net` solo contiene `postgres` y `backend`.
+- `n8n_net` solo contiene `n8n` y `backend`.
+- `ai_net` solo contiene `ollama` y `backend`.
+- n8n no pertenece a `postgres_net`, por lo que no puede resolver ni alcanzar PostgreSQL.
+- PostgreSQL no pertenece a `n8n_net` ni a `ai_net`.
+- Ollama no pertenece a `postgres_net` ni a `n8n_net`.
+- El backend usa `postgres:5432`, `n8n:5678` y `ollama:11434`.
+- n8n puede llamar al backend mediante `http://backend:8000`.
+- Los nombres DNS internos son los nombres de servicio de Compose.
+
+Los puertos publicados se enlazan exclusivamente a `127.0.0.1`. No se publica ningún servicio en `0.0.0.0` ni se abre ningún puerto en el router.
+
+## Backend: Docker, ejecución y pruebas
+
+El backend se construye desde `backend/Dockerfile`:
+
+- Python 3.12 sobre una imagen `slim`.
+- Dependencias de producción de `backend/requirements.txt`.
+- Usuario no root.
+- Uvicorn escuchando en `0.0.0.0:8000` dentro del contenedor.
+- Healthcheck contra `http://127.0.0.1:8000/health`.
+- Alembic incluido para ejecutar migraciones desde el contenedor.
+- Sin `.env`, `.venv`, secretos ni cachés en la imagen.
+
+Comandos de operación:
 
 ```powershell
-$env:PYTHONPATH = "backend"
-.\backend\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
+# Construir la imagen (no arranca servicios)
+docker compose build backend
+
+# Arrancar el backend
+docker compose up -d backend
+
+# Ver registros
+docker compose logs -f backend
+
+# Comprobar salud
+Invoke-WebRequest http://127.0.0.1:8000/health -UseBasicParsing
 ```
 
-La documentación interactiva queda en `http://127.0.0.1:8000/docs` y el esquema OpenAPI en `http://127.0.0.1:8000/openapi.json`.
+### Pruebas en Windows
 
-Ejecutar las pruebas:
+La suite completa se ejecuta con el entorno virtual local. El script configura `PYTHONPATH` automáticamente:
 
 ```powershell
 .\backend\run-tests.ps1 -q
 ```
 
+Las pruebas de concurrencia usan Testcontainers y crean un contenedor PostgreSQL efímero aislado. Requieren Docker disponible. Para ejecutar únicamente las pruebas que no necesitan contenedores:
+
+```powershell
+.\backend\run-tests.ps1 -q --ignore=backend/tests/test_executions_concurrency.py
+```
+
 Ejecutar Ruff:
 
 ```powershell
-.\backend\.venv\Scripts\ruff.exe check backend/app backend/tests
+.\backend\.venv\Scripts\ruff.exe check backend/app backend/tests backend/alembic/env.py
 ```
-
-> `run-tests.ps1` utiliza automáticamente el intérprete de `backend/.venv`.
 
 ## Endpoints disponibles
 
@@ -155,75 +227,46 @@ Estados permitidos: `pending`, `running`, `completed`, `failed` y `cancelled`. T
 
 La creación fija siempre `status="pending"` y `started_at`/`finished_at` en `null`; los campos gestionados por el servidor se ignoran si el cliente los envía. Cada creación y cada transición válida generan un registro de auditoría (`execution.created`, `execution.started`, `execution.completed`, `execution.failed` y `execution.cancelled`). Las transiciones rechazadas y las peticiones idempotentes sin cambio no generan nuevos registros.
 
-## Estado real del desarrollo
+## PostgreSQL
 
-- [x] Estructura de carpetas creada
-- [x] Documentación base en español
-- [x] Plantilla .env.example
-- [x] .gitignore configurado
-- [x] AGENTS.md versionado
-- [x] Backend inicial (FastAPI, SQLAlchemy y Alembic)
-- [x] Migraciones iniciales (Execution y AuditLog)
-- [x] PostgreSQL con Docker Compose
-- [x] Servicio n8n definido en Docker Compose (sin integración con el backend)
-- [x] Pruebas automatizadas del backend
-- [ ] Frontend implementado
-- [ ] Flujos n8n e integración con el backend
-- [ ] Evaluación de prompts y pruebas de calidad de IA
+PostgreSQL se ejecuta en `postgres:16` y conserva sus datos en el volumen `postgres_data`. El puerto se publica únicamente en `127.0.0.1:5432` para herramientas lanzadas desde Windows.
 
-## Base de datos local (PostgreSQL con Docker Compose)
+El backend accede a PostgreSQL por la red interna. Docker Compose construye la URL del backend a partir de `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` y el host `postgres`:
 
-### Requisitos
-
-- Docker Desktop instalado y en ejecución
-
-### Preparación
-
-1. Copiar `.env.example` a `.env` en la raíz del proyecto.
-2. Configurar los valores de `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` y `DATABASE_URL` en `.env`.
-
-### Validación
-
-```powershell
-docker compose config -q
+```text
+postgresql+psycopg://USUARIO:CONTRASEÑA@postgres:5432/BASE_DE_DATOS
 ```
 
-### Arrancar PostgreSQL
+La plantilla `.env.example` mantiene `DATABASE_URL` con host `postgres`. Docker Compose no reutiliza ese valor para el contenedor: construye su propia variable a partir de `POSTGRES_*`. No se debe usar `127.0.0.1` dentro del contenedor del backend, porque esa dirección apunta al propio contenedor.
+
+Con la implementación actual, `POSTGRES_PASSWORD` debe contener únicamente caracteres URL-safe: letras ASCII mayúsculas y minúsculas, dígitos, guion bajo (`_`) y guion (`-`). Compose interpola la contraseña directamente en `DATABASE_URL`; caracteres reservados como `@`, `:`, `/`, `?`, `#` o `%` pueden alterar la URL. Esta es una restricción de la configuración actual, no una limitación inherente a PostgreSQL. Si en el futuro se necesitan contraseñas arbitrarias, la URL deberá construirse con `sqlalchemy.engine.URL.create()` a partir de componentes separados, pasando la contraseña original sin percent-encoding manual.
+
+Desde Windows, el puerto publicado es `127.0.0.1:5432`. Con la plantilla tal cual, las herramientas que lean `.env` desde Windows verán el host `postgres`, que no resuelve. Para usar Alembic directamente en Windows hay que sobrescribir `DATABASE_URL` en la sesión de PowerShell; el procedimiento está en la sección de migraciones.
+
+Comandos útiles:
 
 ```powershell
 docker compose up -d postgres
-```
-
-### Comprobar estado
-
-```powershell
-docker compose ps
+docker compose ps postgres
 docker compose logs postgres
+docker compose exec postgres psql -U aacc_user -d aacc_db
 ```
 
-### Detener
+No ejecutes `docker compose down -v`: eliminaría los volúmenes `postgres_data`, `n8n_data` y `ollama_data`.
 
-```powershell
-docker compose stop postgres
-```
+## n8n
 
-**Nota:** Los datos se guardan en el volumen postgres_data. No se recomienda eliminar el volumen en desarrollo a menos que se quiera borrar la base de datos completamente.
+n8n se ejecuta en un contenedor independiente con su base SQLite dentro del volumen `n8n_data`. No se conecta a PostgreSQL ni a Ollama.
 
-## n8n local (Docker Compose)
+- `N8N_BLOCK_ENV_ACCESS_IN_NODE=true` impide que las expresiones y los nodos Code accedan a las variables de entorno del contenedor.
+- `N8N_ENCRYPTION_KEY` se obtiene de `.env` y no tiene valor por defecto.
+- La clave debe conservarse mientras exista `n8n_data`.
+- n8n comparte `n8n_net` únicamente con el backend.
+- La futura comunicación de n8n hacia FastAPI usará `http://backend:8000`.
+- La comunicación del backend hacia n8n usará `http://n8n:5678`.
+- La integración funcional entre ambos servicios está pendiente.
 
-n8n se ejecuta en un contenedor independiente con su propia base SQLite dentro del volumen `n8n_data`. En esta etapa no se conecta a PostgreSQL, FastAPI ni Ollama. El puerto solo se publica en la interfaz local `127.0.0.1:5678`.
-
-### Aislamiento de red y endurecimiento
-
-- PostgreSQL usa la red exclusiva `postgres_net`; n8n usa la red exclusiva `n8n_net`. No comparten red, por lo que n8n no puede resolver ni alcanzar `postgres` mediante el DNS interno de Docker.
-- Los puertos publicados se mantienen sin cambios y limitados a la interfaz local: PostgreSQL en `127.0.0.1:5432` y n8n en `127.0.0.1:5678`. FastAPI, ejecutándose en Windows, sigue accediendo a PostgreSQL mediante `localhost:5432`.
-- `N8N_BLOCK_ENV_ACCESS_IN_NODE=true` impide que las expresiones y los nodos Code accedan a las variables de entorno del contenedor, incluida la clave de cifrado.
-- Las redes no se marcan como `internal: true`; se mantienen como redes bridge locales para no bloquear el acceso desde el host ni la conectividad saliente que n8n pueda necesitar.
-- La futura comunicación de n8n hacia FastAPI podrá usar `host.docker.internal`; no está implementada en esta etapa.
-
-### Configurar la clave de cifrado
-
-`N8N_ENCRYPTION_KEY` protege las credenciales guardadas por n8n. Compose la exige y no tiene valor por defecto. Genera una clave aleatoria desde PowerShell:
+Configurar la clave de cifrado:
 
 ```powershell
 $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
@@ -232,57 +275,105 @@ $rng.GetBytes($key)
 [Convert]::ToBase64String($key)
 ```
 
-Copia el resultado en `N8N_ENCRYPTION_KEY` dentro de `.env`. No la subas a Git ni reutilices el marcador de `.env.example`. Conserva la misma clave mientras exista el volumen `n8n_data`: si la cambias, n8n no podrá descifrar las credenciales anteriores.
+Copia el resultado en `N8N_ENCRYPTION_KEY` dentro de `.env`. No la subas a Git ni reutilices el marcador de `.env.example`.
 
-### Arrancar n8n
+Arrancar y comprobar n8n:
 
 ```powershell
 docker compose up -d n8n
 docker compose ps n8n
-docker compose logs -f n8n
-```
-
-Abre `http://127.0.0.1:5678` cuando el servicio esté listo. Si `N8N_ENCRYPTION_KEY` no está definida o está vacía en `.env`, Compose aborta el arranque de forma intencionada.
-
-### Comprobar disponibilidad
-
-```powershell
 Invoke-WebRequest http://127.0.0.1:5678/healthz -UseBasicParsing
 ```
 
-También puedes usar `curl.exe -fsS http://127.0.0.1:5678/healthz`. El servicio puede tardar unos segundos en completar el arranque; `docker compose ps n8n` muestra su estado de salud.
+## Ollama
 
-### Detener sin perder datos
+Ollama se ejecuta en Docker mediante la imagen oficial configurada en `OLLAMA_IMAGE`. No publica ningún puerto en Windows y solo comparte la red `ai_net` con el backend.
+
+- El backend usa `http://ollama:11434`.
+- Los modelos se guardan en el volumen `ollama_data`.
+- La integración funcional con el backend está pendiente.
+- No se ha configurado GPU.
+- La compatibilidad de GPU con Docker Desktop y WSL2 debe comprobarse antes de activarla. Si no está disponible, Ollama puede ejecutarse en CPU.
+
+Cuando se autorice la descarga del modelo, el comando previsto es:
 
 ```powershell
-docker compose stop n8n
+docker compose exec ollama ollama pull qwen2.5:3b-instruct
+docker compose exec ollama ollama list
 ```
 
-Para detener todos los servicios sin borrar datos:
-
-```powershell
-docker compose down
-```
-
-No ejecutes `docker compose down -v`: eliminaría los volúmenes `n8n_data` y `postgres_data`. El volumen de n8n es independiente del volumen de PostgreSQL.
-
-### Notas de seguridad y desarrollo
-
-- n8n se publica exclusivamente en `127.0.0.1:5678`.
-- La configuración usa HTTP local y `N8N_SECURE_COOKIE=false`; no debe reutilizarse así en un entorno expuesto a la red.
-- La integración entre FastAPI y n8n se abordará en una etapa posterior.
+No se ha descargado ningún modelo en esta fase.
 
 ## Migraciones con Alembic
 
-Con PostgreSQL en ejecución y `DATABASE_URL` configurada en `.env`, desde la raíz del proyecto:
+La imagen del backend incluye `alembic`, `alembic.ini` y el directorio `backend/alembic`. `backend/alembic/env.py` calcula la raíz del proyecto a partir de su propia ruta, por lo que funciona tanto desde Windows como dentro del contenedor.
+
+### Dentro de Docker (método principal)
+
+Con PostgreSQL en ejecución:
 
 ```powershell
 # Aplicar todas las migraciones pendientes
-.\backend\.venv\Scripts\python.exe -m alembic -c backend/alembic.ini upgrade head
+docker compose run --rm backend alembic -c /app/alembic.ini upgrade head
 
 # Consultar la revisión aplicada
-.\backend\.venv\Scripts\python.exe -m alembic -c backend/alembic.ini current
+docker compose run --rm backend alembic -c /app/alembic.ini current
 ```
+
+También se puede ejecutar sobre un backend ya arrancado:
+
+```powershell
+docker compose exec backend alembic -c /app/alembic.ini upgrade head
+```
+
+Dentro de Docker, `DATABASE_URL` apunta a `postgres:5432`. La revisión actual es `b7c1e4f2a9d3` (`head`) y la restricción `ck_executions_status` ya está aplicada; no hay migraciones pendientes en este momento.
+
+### Desde Windows (alternativa)
+
+La vía principal recomendada es ejecutar Alembic desde el contenedor backend. Este procedimiento es una alternativa válida para herramientas locales. `backend/alembic/env.py` usa `settings.DATABASE_URL`. `pydantic-settings` da prioridad a la variable de entorno sobre el valor de `.env`, por lo que se puede usar una sobrescritura temporal sin editar `.env`:
+
+```powershell
+# Solo para esta sesión de PowerShell.
+# Sustituye USUARIO, CONTRASENA y BASE_DE_DATOS por los valores locales.
+$env:DATABASE_URL = "postgresql+psycopg://USUARIO:CONTRASENA@127.0.0.1:5432/BASE_DE_DATOS"
+.\backend\.venv\Scripts\python.exe -m alembic -c backend/alembic.ini current
+.\backend\.venv\Scripts\python.exe -m alembic -c backend/alembic.ini upgrade head
+Remove-Item Env:DATABASE_URL
+```
+
+`Remove-Item Env:DATABASE_URL` elimina la sobrescritura de la sesión; después, los comandos vuelven a leer `.env`. La sobrescritura afecta únicamente a esa sesión de PowerShell y no modifica `.env`. La contraseña local debe ser URL-safe (letras ASCII, dígitos, `_` y `-`), de modo que la misma contraseña funcione tanto en Compose como en esta alternativa. Si en el futuro se necesitan contraseñas arbitrarias, se deberá construir la URL con `sqlalchemy.engine.URL.create()` a partir de componentes separados. No copies credenciales reales a la documentación ni a archivos versionados.
+
+## Angular
+
+Angular se ejecutará en Windows y se comunicará exclusivamente con FastAPI en `http://localhost:8000`. No accederá directamente a PostgreSQL, n8n ni Ollama.
+
+FastAPI permite los orígenes locales configurados en `BACKEND_CORS_ORIGINS`. Cuando exista el frontend, se puede usar además un proxy de desarrollo de Angular para evitar problemas de CORS.
+
+## Estado real del desarrollo
+
+- [x] Estructura de carpetas creada
+- [x] Documentación base en español
+- [x] Plantilla `.env.example`
+- [x] `.gitignore` configurado
+- [x] `AGENTS.md` versionado
+- [x] Backend inicial (FastAPI, SQLAlchemy y Alembic)
+- [x] Migraciones iniciales (Execution y AuditLog)
+- [x] PostgreSQL con Docker Compose
+- [x] Servicio n8n definido en Docker Compose (sin integración con el backend)
+- [x] Pruebas automatizadas del backend
+- [x] Dockerfile del backend y `.dockerignore`
+- [x] Servicio backend en Docker Compose
+- [x] Servicio Ollama en Docker Compose con volumen `ollama_data`
+- [x] Redes `postgres_net`, `n8n_net` y `ai_net`
+- [x] Configuración CORS para Angular local
+- [x] Imagen del backend construida
+- [x] Servicios PostgreSQL, backend, n8n y Ollama arrancados y saludables
+- [x] Conectividad interna de la infraestructura verificada
+- [x] Migración `b7c1e4f2a9d3` aplicada y verificada
+- [ ] Modelo de Ollama descargado
+- [ ] Frontend implementado
+- [ ] Flujos n8n e integración con el backend
+- [ ] Evaluación de prompts y pruebas de calidad de IA
 
 ## Licencia
 
